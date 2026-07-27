@@ -246,7 +246,7 @@ const RULES = [
   {key:"marketCap",  short:"Mkt cap",   label:"Market cap",   op:">", th:5,   fmt:v=>v==null?"—":"$"+v.toFixed(0)+"B"}
 ];
 // raw metrics; pass/fail computed client-side for internal consistency
-const DATA = [
+const EMBED = [
   {t:"EGO",n:"Eldorado Gold",s:"Materials",trailingPE:9.9,forwardPE:5.01,debtEquity:0.28,epsGrowth:106.81,peg:0.11,marketCap:7.29,src:"FINVIZ"},
   {t:"AA",n:"Alcoa",s:"Materials",trailingPE:9.02,forwardPE:6.85,debtEquity:0.3,epsGrowth:74.61,peg:0.32,marketCap:11.61,src:"FINVIZ"},
   {t:"AEM",n:"Agnico Eagle Mines",s:"Materials",trailingPE:12.88,forwardPE:10.31,debtEquity:0.01,epsGrowth:50.62,peg:0.71,marketCap:69.78,src:"FINVIZ"},
@@ -407,6 +407,12 @@ const DATA = [
   {t:"COST",n:"Costco",s:"Consumer",trailingPE:46.39,forwardPE:44.99,debtEquity:0.25,epsGrowth:12.7,peg:3.66,marketCap:409.6,src:"FMP"},
   {t:"KO",n:"Coca-Cola",s:"Consumer",trailingPE:26.32,forwardPE:25.69,debtEquity:1.3,epsGrowth:27.7,peg:0.95,marketCap:361.3,src:"FMP"}
 ];
+let DATA = EMBED;
+const SECMAP={"Basic Materials":"Materials","Financial":"Financials","Consumer Cyclical":"Consumer","Consumer Defensive":"Consumer","Communication Services":"Communication"};
+window.__full=false;
+
+async function renderAll(){
+
 
 /* ---------- helpers ---------- */
 function passRule(r,v){ if(v==null||isNaN(v)) return false; return r.op==="<" ? v<r.th : v>r.th; }
@@ -418,7 +424,7 @@ const CSS = k=>getComputedStyle(document.documentElement).getPropertyValue(k).tr
 /* ---------- rule chips + as-of + footer ---------- */
 document.getElementById("rulechips").innerHTML = RULES.map(r=>
   `<span class="chip">${r.label} <b>${r.op}&nbsp;${r.key==="epsGrowth"?r.th+"%":r.key==="marketCap"?"$"+r.th+"B":r.th}</b></span>`).join("");
-document.getElementById("asof").textContent = "Screen date: "+new Date(AS_OF+"T00:00:00").toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})+"  ·  entire US market screened (~5,000 listings)  ·  "+DATA.length+" stocks shown";
+document.getElementById("asof").textContent = "Screen date: "+new Date(AS_OF+"T00:00:00").toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})+(window.__full?"  ·  full universe: all "+DATA.length+" US stocks with market cap ≥ $2B (every smaller stock fails the $5B rule by definition)":"  ·  offline sample of "+DATA.length+" stocks — open the public page for the full 2,098-stock universe");
 
 /* ---------- passers table (row-based) ---------- */
 const winners = DATA.filter(d=>d.win);
@@ -468,14 +474,14 @@ document.getElementById("passcount").textContent = "("+winners.length+")";
   const pts=DATA.filter(d=>d.forwardPE!=null&&d.peg!=null);
   pts.sort((a,b)=>a.marketCap-b.marketCap);
   pts.forEach(d=>{
-    const r=Math.max(4,Math.min(15,Math.sqrt(d.marketCap)*0.9));
+    const r=d.win?Math.max(5,Math.min(14,Math.sqrt(d.marketCap)*0.9)):Math.max(2.5,Math.min(9,Math.sqrt(d.marketCap)*0.45));
     const col = d.win?CSS('--pass'):(d.score>=5?CSS('--s-blue'):CSS('--muted'));
-    const op = d.win?0.95:(d.score>=5?0.8:0.5);
+    const op = d.win?0.95:(d.score>=5?0.75:0.35);
     el+=`<circle class="pt" data-t="${d.t}" data-n="${d.n}" data-f="${d.forwardPE}" data-p="${d.peg}" data-c="${d.marketCap}" data-s="${d.score}"
       cx="${x(d.forwardPE)}" cy="${y(d.peg)}" r="${r}" fill="${col}" opacity="${op}" stroke="${CSS('--surface-1')}" stroke-width="1.5"/>`;
   });
   // winner labels
-  pts.filter(d=>d.win).forEach(d=>{
+  pts.filter(d=>d.win&&d.marketCap>30).forEach(d=>{
     el+=`<text x="${x(d.forwardPE)}" y="${y(d.peg)-Math.max(4,Math.min(15,Math.sqrt(d.marketCap)*0.9))-4}" text-anchor="middle" font-size="11" font-weight="700" fill="${CSS('--pass')}">${d.t}</text>`;
   });
   svg.innerHTML=el;
@@ -577,9 +583,22 @@ document.getElementById("passcount").textContent = "("+winners.length+")";
 /* ---------- footer ---------- */
 document.getElementById("footer").innerHTML=`
   <p><b>How to read this.</b> The screen applies all six rules with AND logic — a stock must clear every one. Debt/Equity is expressed as a ratio, so the &lt;35% rule means a ratio below 0.35.</p>
-  <p><b>Data &amp; method.</b> The headline screen is a <b>whole-US-market sweep run July 18, 2026 via the Finviz screener</b> (~5,000 US listings filtered server-side; loose gates of D/E&lt;0.4 and cap&gt;$2B were applied at the source, then the exact six thresholds — including D/E&lt;0.35 and cap&gt;$5B — were re-applied to the 65 survivors, leaving the passers shown above). For Finviz-sourced rows, EPS growth is <b>“EPS growth this year”</b> and market caps are as of that date. Context rows retained from earlier passes use different growth bases: stockanalysis.com rows (July 13) use the analyst 3-year forward growth estimate, and FMP LIVE rows use growth implied by PEG — so compare the growth column across groups with that in mind. A missing figure (“—”) counts as not passing that rule.</p>
-  <p><b>Mega-caps (marked <span style="font-size:9px;font-weight:700;color:var(--s-blue);border:1px solid var(--s-blue);border-radius:4px;padding:0 3px;">LIVE</span>).</b> Twelve familiar mega-caps — AAPL, MSFT, GOOGL, AMZN, META, NVDA, JPM, BAC, V, WMT, COST, KO — carry live Financial Modeling Prep data (July 13, 2026) and are kept for context. None pass all six; Microsoft comes closest at 5/6, missing only forward P/E. The whole-market sweep confirms this independently: none of them survived the market-wide filter either. Note the corrected picture on Micron (MU): both independent sources now agree its market cap is near $1T — the earlier anomaly flag was wrong and has been removed.</p>
+  <p><b>Data &amp; method.</b> On the public page, this dashboard loads the <b>full universe: every US-listed stock with market cap ≥ $2B (2,098 names as of July 18, 2026, via Finviz)</b> — sub-$2B stocks are excluded only because they automatically fail the $5B market-cap rule. All six metrics share one basis: Finviz's trailing P/E, forward P/E, PEG, <b>total</b> debt/equity, and "EPS growth this year." A missing figure ("—") counts as not passing that rule. <b>Correction (July 18):</b> an earlier version of this screen read long-term D/E instead of total D/E; under the correct total-D/E rule XOM, COP, PEGA, RGLD, SF, SSRM and ZTO drop out of the passing list. If this file is opened offline it falls back to a smaller embedded sample and says so above.</p>
+  
   <p><b>Not investment advice.</b> This is a mechanical screen of quantitative rules, not a recommendation. Figures change daily and should be re-verified before any decision.</p>`;
+
+}
+(async()=>{
+  try{
+    const r=await fetch('data.json',{cache:'no-store'});
+    if(r.ok){
+      const j=await r.json();
+      DATA=j.rows.map(x=>({t:x.t,n:x.n,s:SECMAP[x.s]||x.s,trailingPE:x.pe,forwardPE:x.fpe,debtEquity:x.de,epsGrowth:x.eps,peg:x.peg,marketCap:x.cap,src:"FINVIZ"}));
+      window.__full=true; window.__meta=j;
+    }
+  }catch(e){}
+  renderAll();
+})();
 </script>
 </body>
 </html>
