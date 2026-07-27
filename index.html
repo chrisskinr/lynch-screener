@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Peter Lynch Stock Screener</title>
+<style>
+  :root{
+    --surface-1:#fcfcfb; --page:#f4f4f1; --card:#ffffff;
+    --text-primary:#0b0b0b; --text-secondary:#52514e; --muted:#898781;
+    --grid:#e1e0d9; --baseline:#c3c2b7; --border:rgba(11,11,11,0.10);
+    --pass:#0ca30c; --fail:#d03b3b; --warn:#eda100;
+    --s-blue:#2a78d6; --s-aqua:#1baf7a; --s-yellow:#eda100; --s-green:#008300;
+    --s-violet:#4a3aa7; --s-red:#e34948; --s-orange:#eb6834;
+    --passbg:rgba(12,163,12,0.10); --failbg:rgba(208,59,59,0.08);
+    --shadow:0 1px 2px rgba(11,11,11,.05),0 4px 16px rgba(11,11,11,.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --surface-1:#1a1a19; --page:#0d0d0d; --card:#1f1f1e;
+      --text-primary:#ffffff; --text-secondary:#c3c2b7; --muted:#898781;
+      --grid:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,0.10);
+      --pass:#0ca30c; --fail:#e66767; --warn:#c98500;
+      --s-blue:#3987e5; --s-aqua:#199e70; --s-green:#0ca30c;
+      --passbg:rgba(12,163,12,0.16); --failbg:rgba(230,103,103,0.12);
+      --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 16px rgba(0,0,0,.4);
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--page);color:var(--text-primary);
+    font-family:system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.5;
+    -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1120px;margin:0 auto;padding:32px 20px 80px;}
+  header h1{font-size:30px;margin:0 0 4px;letter-spacing:-.02em;}
+  header .sub{color:var(--text-secondary);font-size:15px;margin:0 0 20px;}
+  .rulechips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 8px;}
+  .chip{background:var(--card);border:1px solid var(--border);border-radius:999px;
+    padding:6px 13px;font-size:13px;font-weight:600;box-shadow:var(--shadow);
+    display:inline-flex;align-items:center;gap:6px;}
+  .chip b{color:var(--s-blue);font-variant-numeric:tabular-nums;}
+  .asof{font-size:13px;color:var(--muted);margin-top:10px;}
+  section{margin-top:40px;}
+  h2{font-size:20px;margin:0 0 4px;letter-spacing:-.01em;}
+  h2 .count{color:var(--muted);font-weight:600;font-size:15px;}
+  .lead{color:var(--text-secondary);font-size:14px;margin:0 0 18px;max-width:760px;}
+  /* passer cards */
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;
+    padding:18px;box-shadow:var(--shadow);}
+  .card.win{border-color:rgba(12,163,12,.5);}
+  .card .tkr{display:flex;align-items:baseline;justify-content:space-between;gap:8px;}
+  .card .tkr b{font-size:22px;letter-spacing:-.01em;}
+  .card .tkr .co{font-size:12px;color:var(--muted);text-align:right;flex:1;}
+  .badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;
+    background:var(--passbg);color:var(--pass);margin-top:6px;}
+  .rowline{display:flex;justify-content:space-between;align-items:center;font-size:13px;
+    padding:5px 0;border-top:1px solid var(--grid);}
+  .rowline:first-of-type{border-top:none;margin-top:8px;}
+  .rowline .rl{color:var(--text-secondary);display:flex;align-items:center;gap:7px;}
+  .rowline .rv{font-variant-numeric:tabular-nums;font-weight:600;}
+  .dot{width:15px;height:15px;border-radius:50%;flex:none;display:inline-flex;
+    align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:900;}
+  .dot.p{background:var(--pass);}
+  .dot.f{background:var(--fail);}
+  .flagnote{margin-top:10px;font-size:11.5px;color:var(--warn);background:rgba(237,161,0,.10);
+    border-radius:8px;padding:7px 9px;line-height:1.4;}
+  /* charts */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  @media(max-width:820px){.grid2{grid-template-columns:1fr;}}
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:14px;
+    padding:18px 18px 14px;box-shadow:var(--shadow);}
+  .panel h3{margin:0 0 2px;font-size:15px;}
+  .panel .ph{font-size:12.5px;color:var(--muted);margin:0 0 12px;}
+  svg{display:block;width:100%;height:auto;overflow:visible;}
+  .axlab{fill:var(--muted);font-size:11px;}
+  .axtitle{fill:var(--text-secondary);font-size:11.5px;font-weight:600;}
+  text{font-family:system-ui,sans-serif;}
+  /* bars */
+  .barrow{display:grid;grid-template-columns:132px 1fr 46px;align-items:center;gap:10px;
+    margin:7px 0;font-size:13px;}
+  .barrow .bl{color:var(--text-secondary);}
+  .bartrack{background:var(--grid);border-radius:5px;height:15px;overflow:hidden;}
+  .barfill{height:100%;border-radius:5px;}
+  .barrow .bv{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted);font-size:12px;}
+  /* distribution */
+  .dist{display:flex;align-items:flex-end;gap:10px;height:160px;padding-top:6px;}
+  .distcol{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;}
+  .distbar{width:100%;border-radius:5px 5px 2px 2px;background:var(--s-blue);min-height:2px;
+    display:flex;align-items:flex-start;justify-content:center;}
+  .distbar.win{background:var(--pass);}
+  .distbar .n{color:#fff;font-size:11px;font-weight:700;padding-top:3px;}
+  .distx{font-size:11px;color:var(--muted);margin-top:6px;}
+  /* table */
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 12px;}
+  .controls label{font-size:12.5px;color:var(--text-secondary);display:flex;align-items:center;gap:6px;}
+  select,input[type=text],input[type=number]{font:inherit;font-size:13px;padding:6px 9px;
+    border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text-primary);}
+  .tablewrap{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:var(--card);
+    box-shadow:var(--shadow);}
+  table{border-collapse:collapse;width:100%;font-size:13px;}
+  th,td{padding:8px 10px;text-align:right;white-space:nowrap;}
+  th{position:sticky;top:0;background:var(--card);cursor:pointer;user-select:none;font-size:11.5px;
+    text-transform:uppercase;letter-spacing:.03em;color:var(--muted);border-bottom:1px solid var(--baseline);}
+  th:hover{color:var(--text-primary);}
+  th.sorted::after{content:" ▾";}
+  th.sorted.asc::after{content:" ▴";}
+  td.tk{text-align:left;font-weight:700;}
+  td.co{text-align:left;color:var(--text-secondary);max-width:150px;overflow:hidden;text-overflow:ellipsis;
+    font-weight:400;}
+  tbody tr{border-top:1px solid var(--grid);}
+  tbody tr:hover{background:rgba(42,120,214,.05);}
+  tr.winrow{background:var(--passbg);}
+  tr.winrow:hover{background:var(--passbg);}
+  td.metric{font-variant-numeric:tabular-nums;}
+  td.pass{color:var(--pass);font-weight:600;}
+  td.fail{color:var(--fail);}
+  .scorepill{display:inline-block;min-width:34px;text-align:center;font-weight:700;font-size:12px;
+    padding:2px 7px;border-radius:999px;font-variant-numeric:tabular-nums;}
+  /* manual tool */
+  .calc{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  @media(max-width:820px){.calc{grid-template-columns:1fr;}}
+  .calcform .fld{margin:0 0 11px;}
+  .calcform .fld label{display:block;font-size:12.5px;color:var(--text-secondary);margin-bottom:3px;}
+  .calcform .fld .hint{color:var(--muted);font-weight:400;}
+  .calcform input{width:100%;}
+  .calcbtn{margin-top:4px;background:var(--s-blue);color:#fff;border:none;border-radius:9px;
+    padding:10px 16px;font:inherit;font-weight:600;cursor:pointer;font-size:14px;}
+  .calcbtn:hover{filter:brightness(1.06);}
+  .verdict{text-align:center;padding:16px;border-radius:12px;margin-bottom:14px;font-weight:700;font-size:17px;}
+  .verdict.win{background:var(--passbg);color:var(--pass);}
+  .verdict.lose{background:var(--failbg);color:var(--fail);}
+  .verdict.idle{background:var(--grid);color:var(--muted);font-weight:600;font-size:14px;}
+  .compact th,.compact td{padding:4px 8px;font-size:12.5px;}
+  .compact tbody tr{border-top:1px solid var(--grid);}
+  .compact td.tk{font-weight:700;}
+  .compact .chk{color:var(--pass);font-weight:700;}
+  /* tooltip */
+  #tip{position:fixed;pointer-events:none;background:var(--text-primary);color:var(--page);
+    padding:7px 10px;border-radius:8px;font-size:12px;line-height:1.45;opacity:0;transition:opacity .1s;
+    z-index:50;box-shadow:0 4px 14px rgba(0,0,0,.25);max-width:220px;}
+  #tip b{font-size:13px;}
+  footer{margin-top:48px;padding-top:20px;border-top:1px solid var(--grid);
+    font-size:12px;color:var(--muted);line-height:1.6;}
+  footer b{color:var(--text-secondary);}
+  a{color:var(--s-blue);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Peter Lynch Stock Screener</h1>
+    <p class="sub">Growth at a reasonable price — the six-rule GARP screen.</p>
+    <div class="rulechips" id="rulechips"></div>
+    <div class="asof" id="asof"></div>
+  </header>
+
+  <section id="passers">
+    <h2>Passing all six today <span class="count" id="passcount"></span></h2>
+    <p class="lead">The result of a <b>whole-US-market screen</b> (~5,000 listings, screened July 18, 2026): every stock below clears all six of Peter Lynch's criteria exactly. Sorted by PEG (cheapest growth first) — click any header to re-sort.</p>
+    <div class="tablewrap"><table class="compact" id="passtbl"><thead><tr id="pthr"></tr></thead><tbody id="ptbody"></tbody></table></div>
+  </section>
+
+  <section>
+    <h2>The picture</h2>
+    <p class="lead">Where the pool sits versus the two valuation gates, how many rules each name clears, and which single rule does the most filtering.</p>
+    <div class="grid2">
+      <div class="panel">
+        <h3>Valuation map — the pass zone</h3>
+        <p class="ph">Forward P/E vs PEG. The shaded lower-left box is the zone that clears both gates (Fwd&nbsp;P/E&nbsp;&lt;&nbsp;15 and PEG&nbsp;&lt;&nbsp;2). Bubble size = market cap.</p>
+        <svg id="scatter" viewBox="0 0 460 320" role="img" aria-label="Scatter of forward P/E versus PEG"></svg>
+      </div>
+      <div class="panel">
+        <h3>Score distribution</h3>
+        <p class="ph">How many of the six rules each screened stock clears. Only the far-right bar are the full passers.</p>
+        <div class="dist" id="dist"></div>
+        <div style="display:flex;gap:10px;margin-top:6px;">
+          <div class="distx" style="flex:1;text-align:center;">rules passed →</div>
+        </div>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:20px;">
+      <h3>Which rule is the bottleneck?</h3>
+      <p class="ph">Share of the screened pool that passes each rule on its own. The lowest bar is what kills most candidates.</p>
+      <div id="rulebars"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Full results <span class="count" id="tblcount"></span></h2>
+    <p class="lead">Every stock in the screened pool. Green cells clear the rule, red cells miss it. Click any column header to sort.</p>
+    <div class="controls">
+      <label>Sector
+        <select id="fSector"><option value="">All</option></select>
+      </label>
+      <label>Min rules passed
+        <select id="fMin">
+          <option value="0">0+</option><option value="3">3+</option>
+          <option value="4">4+</option><option value="5">5+</option><option value="6">6 only</option>
+        </select>
+      </label>
+      <label>Search
+        <input type="text" id="fSearch" placeholder="ticker or name" size="12">
+      </label>
+    </div>
+    <div class="tablewrap">
+      <table id="tbl">
+        <thead><tr id="thr"></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Grade any stock</h2>
+    <p class="lead">Enter the six figures for any ticker and check it against the rules yourself. Look them up on a stats page (e.g. stockanalysis.com/stocks/&lt;ticker&gt;/statistics) and drop them in.</p>
+    <div class="calc">
+      <div class="calcform">
+        <div class="fld"><label>Trailing P/E <span class="hint">(rule: &lt; 25)</span></label><input type="number" step="any" id="c_tpe" placeholder="e.g. 18.5"></div>
+        <div class="fld"><label>Forward P/E <span class="hint">(rule: &lt; 15)</span></label><input type="number" step="any" id="c_fpe" placeholder="e.g. 12.0"></div>
+        <div class="fld"><label>Debt / Equity ratio <span class="hint">(rule: &lt; 0.35)</span></label><input type="number" step="any" id="c_de" placeholder="e.g. 0.30"></div>
+        <div class="fld"><label>EPS growth % <span class="hint">(rule: &gt; 15)</span></label><input type="number" step="any" id="c_eps" placeholder="e.g. 20"></div>
+        <div class="fld"><label>PEG ratio <span class="hint">(rule: &lt; 2)</span></label><input type="number" step="any" id="c_peg" placeholder="e.g. 0.9"></div>
+        <div class="fld"><label>Market cap ($B) <span class="hint">(rule: &gt; 5)</span></label><input type="number" step="any" id="c_cap" placeholder="e.g. 40"></div>
+        <button class="calcbtn" id="calcBtn">Grade it</button>
+      </div>
+      <div>
+        <div class="verdict idle" id="verdict">Enter figures and press “Grade it”.</div>
+        <div id="calcrows"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer id="footer"></footer>
+</div>
+<div id="tip"></div>
+
+<script>
+/* ---------- data ---------- */
+const AS_OF = "2026-07-18";
+const RULES = [
+  {key:"trailingPE", short:"Trail P/E", label:"Trailing P/E", op:"<", th:25,  fmt:v=>v==null?"—":v.toFixed(1)},
+  {key:"forwardPE",  short:"Fwd P/E",   label:"Forward P/E",  op:"<", th:15,  fmt:v=>v==null?"—":v.toFixed(1)},
+  {key:"debtEquity", short:"D/E",       label:"Debt/Equity",  op:"<", th:0.35,fmt:v=>v==null?"—":v.toFixed(2)},
+  {key:"epsGrowth",  short:"EPS grw",   label:"EPS growth",   op:">", th:15,  fmt:v=>v==null?"—":v.toFixed(0)+"%"},
+  {key:"peg",        short:"PEG",       label:"PEG",          op:"<", th:2,   fmt:v=>v==null?"—":v.toFixed(2)},
+  {key:"marketCap",  short:"Mkt cap",   label:"Market cap",   op:">", th:5,   fmt:v=>v==null?"—":"$"+v.toFixed(0)+"B"}
+];
+// raw metrics; pass/fail computed client-side for internal consistency
+const DATA = [
+  {t:"EGO",n:"Eldorado Gold",s:"Materials",trailingPE:9.9,forwardPE:5.01,debtEquity:0.28,epsGrowth:106.81,peg:0.11,marketCap:7.29,src:"FINVIZ"},
+  {t:"AA",n:"Alcoa",s:"Materials",trailingPE:9.02,forwardPE:6.85,debtEquity:0.3,epsGrowth:74.61,peg:0.32,marketCap:11.61,src:"FINVIZ"},
+  {t:"AEM",n:"Agnico Eagle Mines",s:"Materials",trailingPE:12.88,forwardPE:10.31,debtEquity:0.01,epsGrowth:50.62,peg:0.71,marketCap:69.78,src:"FINVIZ"},
+  {t:"AGI",n:"Alamos Gold",s:"Materials",trailingPE:11.24,forwardPE:9.26,debtEquity:0.05,epsGrowth:61.13,peg:0.23,marketCap:11.87,src:"FINVIZ"},
+  {t:"ARIS",n:"Aris Mining",s:"Materials",trailingPE:16.78,forwardPE:4.08,debtEquity:0.3,epsGrowth:77.5,peg:0.09,marketCap:2.88,src:"FINVIZ"},
+  {t:"ARW",n:"Arrow Electronics",s:"Technology",trailingPE:14.78,forwardPE:9.58,debtEquity:0.35,epsGrowth:80.96,peg:0.32,marketCap:10.56,src:"FINVIZ"},
+  {t:"ATAT",n:"Atour Lifestyle",s:"Consumer",trailingPE:17.33,forwardPE:12.11,debtEquity:0.24,epsGrowth:20.53,peg:0.63,marketCap:3.64,src:"FINVIZ"},
+  {t:"AU",n:"AngloGold Ashanti",s:"Materials",trailingPE:11.26,forwardPE:7.6,debtEquity:0.25,epsGrowth:79.46,peg:0.34,marketCap:38.76,src:"FINVIZ"},
+  {t:"B",n:"Barrick Mining",s:"Materials",trailingPE:9.62,forwardPE:8.19,debtEquity:0.17,epsGrowth:53.75,peg:0.32,marketCap:58.53,src:"FINVIZ"},
+  {t:"BABA",n:"Alibaba Group ADR",s:"Consumer",trailingPE:18.57,forwardPE:12.85,debtEquity:0.23,epsGrowth:61.85,peg:0.3,marketCap:275.59,src:"FINVIZ"},
+  {t:"BBAR",n:"BBVA Argentina ADR",s:"Financials",trailingPE:23.82,forwardPE:10.74,debtEquity:0.21,epsGrowth:49.33,peg:0.19,marketCap:3.99,src:"FINVIZ"},
+  {t:"BMA",n:"Banco Macro ADR",s:"Financials",trailingPE:20.35,forwardPE:7.57,debtEquity:0.22,epsGrowth:95.58,peg:0.11,marketCap:5.66,src:"FINVIZ"},
+  {t:"BPOP",n:"Popular Inc",s:"Financials",trailingPE:12.68,forwardPE:10.21,debtEquity:0.13,epsGrowth:24.22,peg:0.66,marketCap:11.08,src:"FINVIZ"},
+  {t:"BTG",n:"B2Gold",s:"Materials",trailingPE:10.03,forwardPE:3.11,debtEquity:0.13,epsGrowth:45.65,peg:0.07,marketCap:4.89,src:"FINVIZ"},
+  {t:"CDE",n:"Coeur Mining",s:"Materials",trailingPE:11.86,forwardPE:7.6,debtEquity:0.07,epsGrowth:97.14,peg:0.23,marketCap:14.79,src:"FINVIZ"},
+  {t:"BVN",n:"Buenaventura ADR",s:"Materials",trailingPE:7.84,forwardPE:7.82,debtEquity:0.17,epsGrowth:45.91,peg:1,marketCap:7.67,src:"FINVIZ"},
+  {t:"CEPU",n:"Central Puerto ADR",s:"Utilities",trailingPE:6.53,forwardPE:8.22,debtEquity:0.12,epsGrowth:16.42,peg:1.53,marketCap:2.14,src:"FINVIZ"},
+  {t:"CGAU",n:"Centerra Gold",s:"Materials",trailingPE:4.86,forwardPE:7.45,debtEquity:0.02,epsGrowth:59.66,peg:0.3,marketCap:3,src:"FINVIZ"},
+  {t:"COP",n:"ConocoPhillips",s:"Energy",trailingPE:19.5,forwardPE:13.31,debtEquity:0.34,epsGrowth:54.05,peg:0.9,marketCap:139.75,src:"FINVIZ"},
+  {t:"EG",n:"Everest Group",s:"Financials",trailingPE:7.79,forwardPE:6.36,debtEquity:0.23,epsGrowth:17.73,peg:0.42,marketCap:15.14,src:"FINVIZ"},
+  {t:"MLI",n:"Mueller Industries",s:"Industrials",trailingPE:15.49,forwardPE:13.62,debtEquity:0,epsGrowth:18,peg:1.33,marketCap:13.08,src:"FINVIZ"},
+  {t:"EOG",n:"EOG Resources",s:"Energy",trailingPE:13.76,forwardPE:9.71,debtEquity:0.26,epsGrowth:63.1,peg:0.68,marketCap:74.51,src:"FINVIZ"},
+  {t:"EQT",n:"EQT Corp",s:"Energy",trailingPE:9.39,forwardPE:11.74,debtEquity:0.22,epsGrowth:44.05,peg:0.57,marketCap:31,src:"FINVIZ"},
+  {t:"EQX",n:"Equinox Gold",s:"Materials",trailingPE:13.15,forwardPE:5.54,debtEquity:0.1,epsGrowth:80.51,peg:0.17,marketCap:6.8,src:"FINVIZ"},
+  {t:"ETOR",n:"eToro Group",s:"Financials",trailingPE:14.73,forwardPE:10.65,debtEquity:0.02,epsGrowth:26.68,peg:0.54,marketCap:2.86,src:"FINVIZ"},
+  {t:"EXE",n:"Expand Energy",s:"Energy",trailingPE:6.57,forwardPE:10.85,debtEquity:0.21,epsGrowth:40.03,peg:0.76,marketCap:21.08,src:"FINVIZ"},
+  {t:"FSLR",n:"First Solar",s:"Technology",trailingPE:13.7,forwardPE:8.81,debtEquity:0.04,epsGrowth:24.49,peg:0.32,marketCap:22.78,src:"FINVIZ"},
+  {t:"FSM",n:"Fortuna Mining",s:"Materials",trailingPE:7.58,forwardPE:4.96,debtEquity:0.11,epsGrowth:103.7,peg:0.13,marketCap:2.47,src:"FINVIZ"},
+  {t:"GFI",n:"Gold Fields ADR",s:"Materials",trailingPE:8.09,forwardPE:5.79,debtEquity:0.35,epsGrowth:79.79,peg:0.34,marketCap:28.63,src:"FINVIZ"},
+  {t:"GMED",n:"Globus Medical",s:"Healthcare",trailingPE:17.93,forwardPE:14.96,debtEquity:0.02,epsGrowth:19.15,peg:1.18,marketCap:10.45,src:"FINVIZ"},
+  {t:"HAPN",n:"Happen Inc",s:"Financials",trailingPE:12.87,forwardPE:8.19,debtEquity:0.04,epsGrowth:49.81,peg:0.18,marketCap:2.22,src:"FINVIZ"},
+  {t:"HBM",n:"Hudbay Minerals",s:"Materials",trailingPE:12.29,forwardPE:10.56,debtEquity:0.16,epsGrowth:115.71,peg:0.26,marketCap:9.04,src:"FINVIZ"},
+  {t:"HL",n:"Hecla Mining",s:"Materials",trailingPE:20.6,forwardPE:11.92,debtEquity:0.11,epsGrowth:87.46,peg:0.39,marketCap:9.61,src:"FINVIZ"},
+  {t:"HMY",n:"Harmony Gold ADR",s:"Materials",trailingPE:10.12,forwardPE:3.9,debtEquity:0.03,epsGrowth:103.24,peg:0.09,marketCap:9.15,src:"FINVIZ"},
+  {t:"IAG",n:"IAMGOLD",s:"Materials",trailingPE:8.25,forwardPE:6,debtEquity:0.14,epsGrowth:78.97,peg:0.28,marketCap:8.17,src:"FINVIZ"},
+  {t:"INTU",n:"Intuit",s:"Technology",trailingPE:17.63,forwardPE:10.63,debtEquity:0.29,epsGrowth:18.26,peg:0.69,marketCap:79.62,src:"FINVIZ"},
+  {t:"KGC",n:"Kinross Gold",s:"Materials",trailingPE:9.56,forwardPE:7.1,debtEquity:0.08,epsGrowth:54.53,peg:0.34,marketCap:26.95,src:"FINVIZ"},
+  {t:"LRN",n:"Stride Inc",s:"Consumer",trailingPE:13.47,forwardPE:11.63,debtEquity:0.3,epsGrowth:17.98,peg:1.08,marketCap:3.71,src:"FINVIZ"},
+  {t:"MCY",n:"Mercury General",s:"Financials",trailingPE:7.01,forwardPE:9.88,debtEquity:0.23,epsGrowth:45.57,peg:0.63,marketCap:5.89,src:"FINVIZ"},
+  {t:"MGY",n:"Magnolia Oil & Gas",s:"Energy",trailingPE:15.81,forwardPE:11.53,debtEquity:0.19,epsGrowth:51.79,peg:0.85,marketCap:5.19,src:"FINVIZ"},
+  {t:"SU",n:"Suncor Energy",s:"Energy",trailingPE:16.4,forwardPE:11.6,debtEquity:0.29,epsGrowth:97.36,peg:0.58,marketCap:73.71,src:"FINVIZ"},
+  {t:"MU",n:"Micron Technology",s:"Technology",trailingPE:19.22,forwardPE:5.51,debtEquity:0.06,epsGrowth:784.43,peg:0.03,marketCap:958.8,src:"FINVIZ"},
+  {t:"NEM",n:"Newmont",s:"Materials",trailingPE:11.64,forwardPE:8.36,debtEquity:0.16,epsGrowth:38.52,peg:0.42,marketCap:95.76,src:"FINVIZ"},
+  {t:"NUE",n:"Nucor",s:"Materials",trailingPE:23.44,forwardPE:13.58,debtEquity:0.32,epsGrowth:111.78,peg:0.44,marketCap:53.89,src:"FINVIZ"},
+  {t:"OLLI",n:"Ollie's Bargain Outlet",s:"Consumer",trailingPE:16.43,forwardPE:13.13,debtEquity:0.32,epsGrowth:15.54,peg:0.94,marketCap:4.02,src:"FINVIZ"},
+  {t:"PAAS",n:"Pan American Silver",s:"Materials",trailingPE:13.39,forwardPE:8.41,debtEquity:0.11,epsGrowth:57.26,peg:0.34,marketCap:17.6,src:"FINVIZ"},
+  {t:"PEGA",n:"Pegasystems",s:"Technology",trailingPE:17.31,forwardPE:10.45,debtEquity:0.08,epsGrowth:29.41,peg:0.59,marketCap:5.37,src:"FINVIZ"},
+  {t:"PLGO",n:"Pelagos Insurance",s:"Financials",trailingPE:6.79,forwardPE:6.18,debtEquity:0.37,epsGrowth:86.32,peg:0.18,marketCap:2.17,src:"FINVIZ"},
+  {t:"PLMR",n:"Palomar Holdings",s:"Financials",trailingPE:18.85,forwardPE:12.21,debtEquity:0.31,epsGrowth:25.03,peg:0.77,marketCap:3.59,src:"FINVIZ"},
+  {t:"PR",n:"Permian Resources",s:"Energy",trailingPE:23.52,forwardPE:9.99,debtEquity:0.32,epsGrowth:28.28,peg:0.57,marketCap:16.92,src:"FINVIZ"},
+  {t:"PUK",n:"Prudential plc ADR",s:"Financials",trailingPE:9.21,forwardPE:9.78,debtEquity:0.22,epsGrowth:22.82,peg:0.59,marketCap:35.25,src:"FINVIZ"},
+  {t:"RGLD",n:"Royal Gold",s:"Materials",trailingPE:22.51,forwardPE:14.24,debtEquity:0.08,epsGrowth:47.36,peg:0.59,marketCap:16.05,src:"FINVIZ"},
+  {t:"RIO",n:"Rio Tinto ADR",s:"Materials",trailingPE:14.79,forwardPE:10.76,debtEquity:0.36,epsGrowth:24.53,peg:1.54,marketCap:113.1,src:"FINVIZ"},
+  {t:"RRC",n:"Range Resources",s:"Energy",trailingPE:9.71,forwardPE:8.83,debtEquity:0.2,epsGrowth:34.11,peg:0.53,marketCap:8.66,src:"FINVIZ"},
+  {t:"SEIC",n:"SEI Investments",s:"Financials",trailingPE:16.93,forwardPE:14.61,debtEquity:0.02,epsGrowth:17.37,peg:1.01,marketCap:11.94,src:"FINVIZ"},
+  {t:"SF",n:"Stifel Financial",s:"Financials",trailingPE:15.02,forwardPE:10.71,debtEquity:0.24,epsGrowth:19.15,peg:0.78,marketCap:11.84,src:"FINVIZ"},
+  {t:"SKHY",n:"SK Hynix ADR",s:"Technology",trailingPE:21.03,forwardPE:4.93,debtEquity:0.09,epsGrowth:430.41,peg:0.05,marketCap:1115.89,src:"FINVIZ"},
+  {t:"SKWD",n:"Skyward Specialty Ins",s:"Financials",trailingPE:14.27,forwardPE:10.81,debtEquity:0.4,epsGrowth:22.31,peg:0.74,marketCap:2.4,src:"FINVIZ"},
+  {t:"SSB",n:"SouthState Bank",s:"Financials",trailingPE:11.12,forwardPE:9.98,debtEquity:0.13,epsGrowth:20.01,peg:0.68,marketCap:10.08,src:"FINVIZ"},
+  {t:"SSRM",n:"SSR Mining",s:"Materials",trailingPE:24.64,forwardPE:5.37,debtEquity:0.02,epsGrowth:108.71,peg:0.17,marketCap:5.31,src:"FINVIZ"},
+  {t:"ZTO",n:"ZTO Express ADR",s:"Industrials",trailingPE:14.95,forwardPE:10.46,debtEquity:0.17,epsGrowth:23.1,peg:0.7,marketCap:13.4,src:"FINVIZ"},
+  {t:"TX",n:"Ternium ADR",s:"Materials",trailingPE:15.56,forwardPE:6.85,debtEquity:0.19,epsGrowth:145.36,peg:0.15,marketCap:8.78,src:"FINVIZ"},
+  {t:"VIV",n:"Telefonica Brasil ADR",s:"Communication",trailingPE:19.1,forwardPE:11.21,debtEquity:0.21,epsGrowth:34.24,peg:0.47,marketCap:22.29,src:"FINVIZ"},
+  {t:"VLY",n:"Valley National",s:"Financials",trailingPE:13.41,forwardPE:9.71,debtEquity:0.35,epsGrowth:30.29,peg:0.46,marketCap:8.28,src:"FINVIZ"},
+  {t:"XOM",n:"Exxon Mobil",s:"Energy",trailingPE:24.87,forwardPE:14.11,debtEquity:0.13,epsGrowth:57.27,peg:0.88,marketCap:610.73,src:"FINVIZ"},
+  {t:"STLD",n:"Steel Dynamics",s:"Materials",trailingPE:24.47,forwardPE:12.42,debtEquity:0.46,epsGrowth:32.29,peg:0.71,marketCap:32.94},
+  {t:"SMCI",n:"Super Micro Computer",s:"Technology",trailingPE:14.84,forwardPE:9.57,debtEquity:1.21,epsGrowth:21.66,peg:0.33,marketCap:18.31},
+  {t:"PHM",n:"PulteGroup",s:"Homebuilders",trailingPE:12.04,forwardPE:12.24,debtEquity:0.19,epsGrowth:4.55,peg:1.55,marketCap:23.76},
+  {t:"TOL",n:"Toll Brothers",s:"Homebuilders",trailingPE:11.29,forwardPE:11.46,debtEquity:0.34,epsGrowth:6.03,peg:1.2,marketCap:13.97},
+  {t:"ALLY",n:"Ally Financial",s:"Financials",trailingPE:11.13,forwardPE:8.04,debtEquity:null,epsGrowth:25.1,peg:0.29,marketCap:13.97},
+  {t:"DECK",n:"Deckers Outdoor",s:"Consumer",trailingPE:15.1,forwardPE:14.18,debtEquity:0.15,epsGrowth:10.29,peg:1.24,marketCap:14.72},
+  {t:"DAL",n:"Delta Air Lines",s:"Industrials",trailingPE:14.5,forwardPE:10.83,debtEquity:0.97,epsGrowth:18.72,peg:0.78,marketCap:57.16},
+  {t:"UAL",n:"United Airlines",s:"Industrials",trailingPE:11.24,forwardPE:12.47,debtEquity:1.95,epsGrowth:17.4,peg:0.74,marketCap:40.9},
+  {t:"CMC",n:"Commercial Metals",s:"Materials",trailingPE:11.9,forwardPE:9.31,debtEquity:0.8,epsGrowth:30.57,peg:0.36,marketCap:6.93},
+  {t:"VLO",n:"Valero Energy",s:"Energy",trailingPE:20.42,forwardPE:8.92,debtEquity:0.43,epsGrowth:19.67,peg:0.77,marketCap:83.35},
+  {t:"MPC",n:"Marathon Petroleum",s:"Energy",trailingPE:18.47,forwardPE:8.42,debtEquity:1.47,epsGrowth:25.11,peg:0.5,marketCap:82.83},
+  {t:"PSX",n:"Phillips 66",s:"Energy",trailingPE:18.56,forwardPE:8.49,debtEquity:0.91,epsGrowth:40.83,peg:0.28,marketCap:75.52},
+  {t:"CVX",n:"Chevron",s:"Energy",trailingPE:30.68,forwardPE:11.11,debtEquity:0.24,epsGrowth:20.2,peg:1.18,marketCap:348.82},
+  {t:"CTRA",n:"Coterra Energy",s:"Energy",trailingPE:15,forwardPE:10.94,debtEquity:0.24,epsGrowth:null,peg:0.63,marketCap:24.72},
+  {t:"DHI",n:"D.R. Horton",s:"Homebuilders",trailingPE:14.14,forwardPE:13.72,debtEquity:0.27,epsGrowth:8.48,peg:2.44,marketCap:42.98},
+  {t:"LEN",n:"Lennar",s:"Homebuilders",trailingPE:13.1,forwardPE:14.93,debtEquity:0.29,epsGrowth:9.42,peg:null,marketCap:20.3},
+  {t:"DVN",n:"Devon Energy",s:"Energy",trailingPE:11.7,forwardPE:7.58,debtEquity:0.56,epsGrowth:14.39,peg:0.84,marketCap:48.71},
+  {t:"FANG",n:"Diamondback Energy",s:"Energy",trailingPE:188.89,forwardPE:9.03,debtEquity:0.33,epsGrowth:8.16,peg:1,marketCap:51.59},
+  {t:"OXY",n:"Occidental Petroleum",s:"Energy",trailingPE:71.5,forwardPE:9.65,debtEquity:0.42,epsGrowth:17.8,peg:0.89,marketCap:52.61},
+  {t:"APA",n:"APA Corp",s:"Energy",trailingPE:7.8,forwardPE:5.88,debtEquity:0.61,epsGrowth:2.4,peg:0.73,marketCap:11.82},
+  {t:"AR",n:"Antero Resources",s:"Energy",trailingPE:10.76,forwardPE:8.06,debtEquity:0.58,epsGrowth:45.34,peg:null,marketCap:10.3},
+  {t:"AMAT",n:"Applied Materials",s:"Technology",trailingPE:56.67,forwardPE:40.34,debtEquity:0.3,epsGrowth:30.1,peg:1.53,marketCap:478.36},
+  {t:"WDC",n:"Western Digital",s:"Technology",trailingPE:31.9,forwardPE:36.2,debtEquity:0.18,epsGrowth:74.39,peg:0.49,marketCap:200.81},
+  {t:"MPWR",n:"Monolithic Power",s:"Technology",trailingPE:96.8,forwardPE:52.95,debtEquity:0.01,epsGrowth:25.9,peg:1.86,marketCap:66.46},
+  {t:"CI",n:"The Cigna Group",s:"Healthcare",trailingPE:12.43,forwardPE:9.5,debtEquity:0.73,epsGrowth:7.44,peg:0.94,marketCap:77.63},
+  {t:"JAZZ",n:"Jazz Pharmaceuticals",s:"Healthcare",trailingPE:520.04,forwardPE:9.93,debtEquity:1.2,epsGrowth:48.76,peg:0.18,marketCap:15.32},
+  {t:"SYF",n:"Synchrony Financial",s:"Financials",trailingPE:7.47,forwardPE:7.51,debtEquity:null,epsGrowth:8.34,peg:1.03,marketCap:24.37},
+  {t:"DKS",n:"Dick's Sporting Goods",s:"Consumer",trailingPE:21.05,forwardPE:14.5,debtEquity:1.39,epsGrowth:11.98,peg:1.81,marketCap:19.51},
+  {t:"LYB",n:"LyondellBasell",s:"Materials",trailingPE:null,forwardPE:5.48,debtEquity:1.41,epsGrowth:60.2,peg:0.1,marketCap:18.19},
+  {t:"RS",n:"Reliance Inc.",s:"Materials",trailingPE:24.75,forwardPE:18.62,debtEquity:0.28,epsGrowth:12.81,peg:1.1,marketCap:19.36},
+  {t:"AGCO",n:"AGCO Corp",s:"Industrials",trailingPE:10.97,forwardPE:17.73,debtEquity:0.6,epsGrowth:26.48,peg:0.71,marketCap:8.28},
+  {t:"F",n:"Ford Motor",s:"Autos",trailingPE:null,forwardPE:9.45,debtEquity:4.26,epsGrowth:23.88,peg:0.46,marketCap:55.79},
+  {t:"NVR",n:"NVR Inc.",s:"Homebuilders",trailingPE:15.75,forwardPE:17.29,debtEquity:0.31,epsGrowth:5.6,peg:4.78,marketCap:17.49},
+  {t:"MTH",n:"Meritage Homes",s:"Homebuilders",trailingPE:13.72,forwardPE:14.22,debtEquity:0.37,epsGrowth:7.2,peg:3.14,marketCap:5.04},
+  {t:"MHO",n:"M/I Homes",s:"Homebuilders",trailingPE:11.06,forwardPE:11.35,debtEquity:0.32,epsGrowth:4.21,peg:null,marketCap:3.77},
+  {t:"TMHC",n:"Taylor Morrison",s:"Homebuilders",trailingPE:10.69,forwardPE:13.22,debtEquity:0.39,epsGrowth:null,peg:null,marketCap:6.61},
+  {t:"GRBK",n:"Green Brick Partners",s:"Homebuilders",trailingPE:10.84,forwardPE:12.89,debtEquity:0.14,epsGrowth:null,peg:null,marketCap:3.18},
+  {t:"SKY",n:"Champion Homes",s:"Homebuilders",trailingPE:22.19,forwardPE:23.91,debtEquity:0.09,epsGrowth:6.15,peg:1.59,marketCap:4.46},
+  {t:"STX",n:"Seagate Technology",s:"Technology",trailingPE:86.22,forwardPE:36.87,debtEquity:3.82,epsGrowth:73.75,peg:0.5,marketCap:205.97},
+  {t:"ON",n:"ON Semiconductor",s:"Technology",trailingPE:67.9,forwardPE:28.4,debtEquity:0.44,epsGrowth:34.99,peg:0.92,marketCap:37.35},
+  {t:"AVGO",n:"Broadcom",s:"Technology",trailingPE:66.57,forwardPE:25.4,debtEquity:0.74,epsGrowth:55.69,peg:0.55,marketCap:1900},
+  {t:"HPQ",n:"HP Inc.",s:"Technology",trailingPE:8.94,forwardPE:8.85,debtEquity:null,epsGrowth:1.65,peg:2.01,marketCap:22.15},
+  {t:"JBL",n:"Jabil Inc.",s:"Technology",trailingPE:41.28,forwardPE:21.02,debtEquity:2.97,epsGrowth:26.79,peg:0.74,marketCap:34.61},
+  {t:"SANM",n:"Sanmina",s:"Technology",trailingPE:44.23,forwardPE:17.75,debtEquity:0.93,epsGrowth:26.72,peg:0.64,marketCap:11.19},
+  {t:"FLEX",n:"Flex Ltd.",s:"Technology",trailingPE:58.28,forwardPE:29.99,debtEquity:0.87,epsGrowth:43.15,peg:0.66,marketCap:49.75},
+  {t:"ANET",n:"Arista Networks",s:"Technology",trailingPE:64.24,forwardPE:49.55,debtEquity:0,epsGrowth:22.22,peg:2.82,marketCap:235.42},
+  {t:"CNC",n:"Centene",s:"Healthcare",trailingPE:null,forwardPE:19.25,debtEquity:0.76,epsGrowth:42.55,peg:0.52,marketCap:33.26},
+  {t:"MCK",n:"McKesson",s:"Healthcare",trailingPE:21,forwardPE:18.21,debtEquity:null,epsGrowth:13.64,peg:1.49,marketCap:94.36},
+  {t:"COR",n:"Cencora",s:"Healthcare",trailingPE:23.25,forwardPE:16.32,debtEquity:4.21,epsGrowth:11.12,peg:1.61,marketCap:59.04},
+  {t:"CAH",n:"Cardinal Health",s:"Healthcare",trailingPE:36.07,forwardPE:20.4,debtEquity:null,epsGrowth:18,peg:1.2,marketCap:55.23},
+  {t:"WSM",n:"Williams-Sonoma",s:"Consumer",trailingPE:24.82,forwardPE:23.24,debtEquity:0.8,epsGrowth:8.93,peg:1.85,marketCap:26.11},
+  {t:"BBY",n:"Best Buy",s:"Consumer",trailingPE:15.33,forwardPE:12.35,debtEquity:1.34,epsGrowth:6.32,peg:2.22,marketCap:17.45},
+  {t:"CROX",n:"Crocs",s:"Consumer",trailingPE:null,forwardPE:9.54,debtEquity:1.21,epsGrowth:5.16,peg:1.35,marketCap:6.6},
+  {t:"CF",n:"CF Industries",s:"Materials",trailingPE:10.55,forwardPE:6.61,debtEquity:0.44,epsGrowth:-4.22,peg:null,marketCap:17.96},
+  {t:"NTR",n:"Nutrien",s:"Materials",trailingPE:13.16,forwardPE:11.29,debtEquity:0.55,epsGrowth:2.07,peg:null,marketCap:31.42},
+  {t:"PCAR",n:"PACCAR",s:"Industrials",trailingPE:26.5,forwardPE:20.75,debtEquity:0.76,epsGrowth:16.13,peg:1.19,marketCap:65.56},
+  {t:"CNH",n:"CNH Industrial",s:"Industrials",trailingPE:33.74,forwardPE:21.09,debtEquity:3.34,epsGrowth:25.77,peg:1.17,marketCap:12.96},
+  {t:"GM",n:"General Motors",s:"Autos",trailingPE:30.48,forwardPE:6.2,debtEquity:1.99,epsGrowth:12.09,peg:0.4,marketCap:70.19},
+  {t:"KBH",n:"KB Home",s:"Homebuilders",trailingPE:13.49,forwardPE:14.33,debtEquity:0.53,epsGrowth:-6.94,peg:null,marketCap:3.45},
+  {t:"TPH",n:"Tri Pointe Homes",s:"Homebuilders",trailingPE:22.24,forwardPE:25.59,debtEquity:0.38,epsGrowth:null,peg:1.97,marketCap:4},
+  {t:"IBP",n:"Installed Bldg Prod",s:"Construction",trailingPE:23.99,forwardPE:21.65,debtEquity:1.77,epsGrowth:5.05,peg:5.14,marketCap:6.03},
+  {t:"CVCO",n:"Cavco Industries",s:"Homebuilders",trailingPE:23.66,forwardPE:23.68,debtEquity:0.04,epsGrowth:11.96,peg:null,marketCap:4.37},
+  {t:"MUR",n:"Murphy Oil",s:"Energy",trailingPE:57.65,forwardPE:8.14,debtEquity:0.44,epsGrowth:34.28,peg:null,marketCap:4.84},
+  {t:"LRCX",n:"Lam Research",s:"Technology",trailingPE:66.17,forwardPE:46.26,debtEquity:0.35,epsGrowth:33.88,peg:2.09,marketCap:438.11},
+  {t:"KLAC",n:"KLA Corp",s:"Technology",trailingPE:65.54,forwardPE:48.4,debtEquity:1.05,epsGrowth:23.22,peg:2.49,marketCap:302.43},
+  {t:"QCOM",n:"Qualcomm",s:"Technology",trailingPE:20.67,forwardPE:19.22,debtEquity:0.56,epsGrowth:3.3,peg:5.69,marketCap:199.37},
+  {t:"DELL",n:"Dell Technologies",s:"Technology",trailingPE:34.77,forwardPE:null,debtEquity:null,epsGrowth:35.03,peg:null,marketCap:281.05},
+  {t:"ELV",n:"Elevance Health",s:"Healthcare",trailingPE:17.7,forwardPE:15.86,debtEquity:0.72,epsGrowth:4.03,peg:4.12,marketCap:90.39},
+  {t:"HUM",n:"Humana",s:"Healthcare",trailingPE:41.91,forwardPE:37.21,debtEquity:0.77,epsGrowth:14.1,peg:1.92,marketCap:47.09},
+  {t:"GILD",n:"Gilead Sciences",s:"Healthcare",trailingPE:17.66,forwardPE:70.61,debtEquity:0.95,epsGrowth:8.58,peg:null,marketCap:161.19},
+  {t:"DOW",n:"Dow Inc.",s:"Materials",trailingPE:null,forwardPE:8.92,debtEquity:1.17,epsGrowth:null,peg:null,marketCap:20.92},
+  {t:"MOS",n:"Mosaic",s:"Materials",trailingPE:151.73,forwardPE:16.89,debtEquity:0.48,epsGrowth:-4.94,peg:1.36,marketCap:6.84},
+  {t:"PWR",n:"Quanta Services",s:"Industrials",trailingPE:90.38,forwardPE:45.63,debtEquity:0.69,epsGrowth:22.43,peg:2.61,marketCap:98.82},
+  {t:"CSCO",n:"Cisco Systems",s:"Technology",trailingPE:40.43,forwardPE:25.86,debtEquity:0.68,epsGrowth:11.25,peg:2.87,marketCap:478.14},
+  {t:"CCS",n:"Century Communities",s:"Homebuilders",trailingPE:14.63,forwardPE:16.98,debtEquity:0.6,epsGrowth:null,peg:null,marketCap:1.87},
+  {t:"LGIH",n:"LGI Homes",s:"Homebuilders",trailingPE:19.5,forwardPE:16.14,debtEquity:0.82,epsGrowth:null,peg:null,marketCap:1.38},
+  {t:"BLDR",n:"Builders FirstSource",s:"Construction",trailingPE:28.73,forwardPE:16.06,debtEquity:1.32,epsGrowth:1.9,peg:6.44,marketCap:8.14},
+  {t:"MOH",n:"Molina Healthcare",s:"Healthcare",trailingPE:64.82,forwardPE:40.6,debtEquity:0.97,epsGrowth:5.44,peg:5.38,marketCap:12.15},
+  {t:"CLF",n:"Cleveland-Cliffs",s:"Materials",trailingPE:null,forwardPE:73.38,debtEquity:1.29,epsGrowth:null,peg:null,marketCap:5.36},
+  {t:"ZIM",n:"ZIM Integrated",s:"Industrials",trailingPE:29.49,forwardPE:2.47,debtEquity:1.43,epsGrowth:null,peg:null,marketCap:2.89},
+  {t:"AAPL",n:"Apple",s:"Technology",trailingPE:38.29,forwardPE:36.23,debtEquity:0.8,epsGrowth:29,peg:1.32,marketCap:4661.5,src:"FMP"},
+  {t:"MSFT",n:"Microsoft",s:"Technology",trailingPE:23.26,forwardPE:20.16,debtEquity:0.3,epsGrowth:29.8,peg:0.78,marketCap:2911.9,src:"FMP"},
+  {t:"GOOGL",n:"Alphabet",s:"Communication",trailingPE:26.89,forwardPE:24.96,debtEquity:0.19,epsGrowth:46.4,peg:0.58,marketCap:4305.2,src:"FMP"},
+  {t:"AMZN",n:"Amazon",s:"Consumer",trailingPE:29.22,forwardPE:28.13,debtEquity:0.47,epsGrowth:35.2,peg:0.83,marketCap:2669.1,src:"FMP"},
+  {t:"META",n:"Meta Platforms",s:"Communication",trailingPE:23.61,forwardPE:20.08,debtEquity:0.36,epsGrowth:6.2,peg:3.79,marketCap:1676,src:"FMP"},
+  {t:"NVDA",n:"NVIDIA",s:"Technology",trailingPE:31.38,forwardPE:22.92,debtEquity:0.07,epsGrowth:108.2,peg:0.29,marketCap:4986.1,src:"FMP"},
+  {t:"JPM",n:"JPMorgan Chase",s:"Financials",trailingPE:15.93,forwardPE:14.65,debtEquity:3.39,epsGrowth:2.5,peg:6.37,marketCap:892.9,src:"FMP"},
+  {t:"BAC",n:"Bank of America",s:"Financials",trailingPE:14.49,forwardPE:13.14,debtEquity:1.28,epsGrowth:20.7,peg:0.7,marketCap:420.5,src:"FMP"},
+  {t:"V",n:"Visa",s:"Financials",trailingPE:30.96,forwardPE:27.06,debtEquity:0.67,epsGrowth:15.3,peg:2.02,marketCap:681.9,src:"FMP"},
+  {t:"WMT",n:"Walmart",s:"Consumer",trailingPE:40.13,forwardPE:39.4,debtEquity:0.79,epsGrowth:21.8,peg:1.84,marketCap:910.4,src:"FMP"},
+  {t:"COST",n:"Costco",s:"Consumer",trailingPE:46.39,forwardPE:44.99,debtEquity:0.25,epsGrowth:12.7,peg:3.66,marketCap:409.6,src:"FMP"},
+  {t:"KO",n:"Coca-Cola",s:"Consumer",trailingPE:26.32,forwardPE:25.69,debtEquity:1.3,epsGrowth:27.7,peg:0.95,marketCap:361.3,src:"FMP"}
+];
+
+/* ---------- helpers ---------- */
+function passRule(r,v){ if(v==null||isNaN(v)) return false; return r.op==="<" ? v<r.th : v>r.th; }
+function score(d){ return RULES.reduce((a,r)=>a+(passRule(r,d[r.key])?1:0),0); }
+DATA.forEach(d=>{ d.score=score(d); d.win = d.score===6; });
+
+const CSS = k=>getComputedStyle(document.documentElement).getPropertyValue(k).trim();
+
+/* ---------- rule chips + as-of + footer ---------- */
+document.getElementById("rulechips").innerHTML = RULES.map(r=>
+  `<span class="chip">${r.label} <b>${r.op}&nbsp;${r.key==="epsGrowth"?r.th+"%":r.key==="marketCap"?"$"+r.th+"B":r.th}</b></span>`).join("");
+document.getElementById("asof").textContent = "Screen date: "+new Date(AS_OF+"T00:00:00").toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})+"  ·  entire US market screened (~5,000 listings)  ·  "+DATA.length+" stocks shown";
+
+/* ---------- passers table (row-based) ---------- */
+const winners = DATA.filter(d=>d.win);
+document.getElementById("passcount").textContent = "("+winners.length+")";
+(function(){
+  const cols=[{k:"t",l:"Ticker"},{k:"n",l:"Company"},{k:"s",l:"Sector"},
+    {k:"trailingPE",l:"Trail P/E",r:0},{k:"forwardPE",l:"Fwd P/E",r:1},{k:"debtEquity",l:"D/E",r:2},
+    {k:"epsGrowth",l:"EPS grw",r:3},{k:"peg",l:"PEG",r:4},{k:"marketCap",l:"Mkt cap",r:5}];
+  let sK="peg", sAsc=true;
+  const thr=document.getElementById("pthr"), tb=document.getElementById("ptbody");
+  thr.innerHTML=cols.map(c=>`<th data-k="${c.k}">${c.l}</th>`).join("");
+  function render(){
+    const rows=[...winners].sort((a,b)=>{let av=a[sK],bv=b[sK];
+      if(typeof av==="string")return sAsc?av.localeCompare(bv):bv.localeCompare(av);
+      av=av==null?Infinity:av;bv=bv==null?Infinity:bv;return sAsc?av-bv:bv-av;});
+    tb.innerHTML=rows.map(d=>`<tr>
+      <td class="tk">${d.t}</td><td class="co" title="${d.n}">${d.n}</td><td class="co">${d.s}</td>
+      ${RULES.map(r=>`<td class="metric pass">${r.fmt(d[r.key])}</td>`).join("")}
+    </tr>`).join("");
+    thr.querySelectorAll("th").forEach(th=>{th.classList.toggle("sorted",th.dataset.k===sK);th.classList.toggle("asc",sAsc);});
+  }
+  thr.querySelectorAll("th").forEach(th=>th.addEventListener("click",()=>{
+    const k=th.dataset.k; if(k===sK)sAsc=!sAsc; else{sK=k;sAsc=(k==="t"||k==="n"||k==="s"||k==="peg");} render();}));
+  render();
+})();
+
+/* ---------- scatter: forwardPE vs peg ---------- */
+(function(){
+  const svg=document.getElementById("scatter");
+  const W=460,H=320,pad={l:44,r:14,t:12,b:40};
+  const xMax=30, yMax=4; // clamp
+  const x=v=>pad.l+(Math.min(v,xMax)/xMax)*(W-pad.l-pad.r);
+  const y=v=>H-pad.b-(Math.min(v,yMax)/yMax)*(H-pad.t-pad.b);
+  let el="";
+  // pass zone rectangle (fwdPE<15 & peg<2)
+  el+=`<rect x="${x(0)}" y="${y(2)}" width="${x(15)-x(0)}" height="${y(0)-y(2)}" fill="${CSS('--pass')}" opacity="0.08"/>`;
+  el+=`<line x1="${x(15)}" y1="${pad.t}" x2="${x(15)}" y2="${H-pad.b}" stroke="${CSS('--pass')}" stroke-dasharray="4 3" stroke-width="1.5" opacity="0.6"/>`;
+  el+=`<line x1="${pad.l}" y1="${y(2)}" x2="${W-pad.r}" y2="${y(2)}" stroke="${CSS('--pass')}" stroke-dasharray="4 3" stroke-width="1.5" opacity="0.6"/>`;
+  // gridlines + x ticks
+  for(let gx=0;gx<=30;gx+=5){ el+=`<line x1="${x(gx)}" y1="${pad.t}" x2="${x(gx)}" y2="${H-pad.b}" stroke="${CSS('--grid')}" stroke-width="1"/>`;
+    el+=`<text class="axlab" x="${x(gx)}" y="${H-pad.b+15}" text-anchor="middle">${gx}</text>`;}
+  for(let gy=0;gy<=4;gy+=1){ el+=`<line x1="${pad.l}" y1="${y(gy)}" x2="${W-pad.r}" y2="${y(gy)}" stroke="${CSS('--grid')}" stroke-width="1"/>`;
+    el+=`<text class="axlab" x="${pad.l-8}" y="${y(gy)+4}" text-anchor="end">${gy}</text>`;}
+  el+=`<text class="axtitle" x="${(pad.l+W-pad.r)/2}" y="${H-4}" text-anchor="middle">Forward P/E  (clamped at 30)</text>`;
+  el+=`<text class="axtitle" transform="translate(12,${(pad.t+H-pad.b)/2}) rotate(-90)" text-anchor="middle">PEG  (clamped at 4)</text>`;
+  // points
+  const pts=DATA.filter(d=>d.forwardPE!=null&&d.peg!=null);
+  pts.sort((a,b)=>a.marketCap-b.marketCap);
+  pts.forEach(d=>{
+    const r=Math.max(4,Math.min(15,Math.sqrt(d.marketCap)*0.9));
+    const col = d.win?CSS('--pass'):(d.score>=5?CSS('--s-blue'):CSS('--muted'));
+    const op = d.win?0.95:(d.score>=5?0.8:0.5);
+    el+=`<circle class="pt" data-t="${d.t}" data-n="${d.n}" data-f="${d.forwardPE}" data-p="${d.peg}" data-c="${d.marketCap}" data-s="${d.score}"
+      cx="${x(d.forwardPE)}" cy="${y(d.peg)}" r="${r}" fill="${col}" opacity="${op}" stroke="${CSS('--surface-1')}" stroke-width="1.5"/>`;
+  });
+  // winner labels
+  pts.filter(d=>d.win).forEach(d=>{
+    el+=`<text x="${x(d.forwardPE)}" y="${y(d.peg)-Math.max(4,Math.min(15,Math.sqrt(d.marketCap)*0.9))-4}" text-anchor="middle" font-size="11" font-weight="700" fill="${CSS('--pass')}">${d.t}</text>`;
+  });
+  svg.innerHTML=el;
+  const tip=document.getElementById("tip");
+  svg.querySelectorAll(".pt").forEach(c=>{
+    c.style.cursor="pointer";
+    c.addEventListener("mousemove",e=>{
+      tip.innerHTML=`<b>${c.dataset.t}</b> — ${c.dataset.n}<br>Fwd P/E ${(+c.dataset.f).toFixed(1)} · PEG ${(+c.dataset.p).toFixed(2)}<br>Cap $${(+c.dataset.c).toFixed(0)}B · ${c.dataset.s}/6 rules`;
+      tip.style.opacity=1; tip.style.left=(e.clientX+14)+"px"; tip.style.top=(e.clientY+14)+"px";
+    });
+    c.addEventListener("mouseleave",()=>tip.style.opacity=0);
+  });
+})();
+
+/* ---------- distribution ---------- */
+(function(){
+  const counts=[0,0,0,0,0,0,0];
+  DATA.forEach(d=>counts[d.score]++);
+  const max=Math.max(...counts);
+  document.getElementById("dist").innerHTML=counts.map((c,i)=>`
+    <div class="distcol">
+      <div class="distbar ${i===6?'win':''}" style="height:${max?Math.max(4,c/max*100):0}%">${c>0?`<span class="n">${c}</span>`:""}</div>
+      <div class="distx">${i}</div>
+    </div>`).join("");
+})();
+
+/* ---------- rule bottleneck bars ---------- */
+(function(){
+  const host=document.getElementById("rulebars");
+  const rows=RULES.map(r=>{
+    const n=DATA.filter(d=>passRule(r,d[r.key])).length;
+    return {label:r.label, n, pct:n/DATA.length};
+  }).sort((a,b)=>a.pct-b.pct);
+  const minPct=rows[0].pct;
+  host.innerHTML=rows.map(r=>{
+    const isBottleneck=r.pct===minPct;
+    const col=isBottleneck?CSS('--fail'):CSS('--s-blue');
+    return `<div class="barrow"><span class="bl">${r.label}${isBottleneck?' 🔒':''}</span>
+      <div class="bartrack"><div class="barfill" style="width:${(r.pct*100).toFixed(0)}%;background:${col}"></div></div>
+      <span class="bv">${r.n} · ${(r.pct*100).toFixed(0)}%</span></div>`;
+  }).join("");
+})();
+
+/* ---------- table ---------- */
+(function(){
+  const thr=document.getElementById("thr"), tbody=document.getElementById("tbody");
+  const cols=[{k:"t",l:"Ticker",cls:"tk"},{k:"n",l:"Company",cls:"co"},{k:"s",l:"Sector",cls:"co"},
+    ...RULES.map(r=>({k:r.key,l:r.short,rule:r})),{k:"score",l:"Score"}];
+  thr.innerHTML=cols.map(c=>`<th data-k="${c.k}">${c.l}</th>`).join("");
+  let sortK="score", sortAsc=false;
+  const sel=document.getElementById("fSector");
+  [...new Set(DATA.map(d=>d.s))].sort().forEach(s=>sel.insertAdjacentHTML("beforeend",`<option>${s}</option>`));
+
+  function render(){
+    const fs=sel.value, fm=+document.getElementById("fMin").value, q=document.getElementById("fSearch").value.trim().toLowerCase();
+    let rows=DATA.filter(d=>(!fs||d.s===fs)&&(fm===6?d.score===6:d.score>=fm)&&
+      (!q||d.t.toLowerCase().includes(q)||d.n.toLowerCase().includes(q)));
+    rows.sort((a,b)=>{let av=a[sortK],bv=b[sortK];
+      if(typeof av==="string"){av=av||"";bv=bv||"";return sortAsc?av.localeCompare(bv):bv.localeCompare(av);}
+      av=av==null?-Infinity:av; bv=bv==null?-Infinity:bv; return sortAsc?av-bv:bv-av;});
+    document.getElementById("tblcount").textContent="("+rows.length+")";
+    tbody.innerHTML=rows.map(d=>`<tr class="${d.win?'winrow':''}">`+cols.map(c=>{
+      if(c.k==="t")return `<td class="tk">${d.t}${d.src==="FMP"?` <span title="Live data via Financial Modeling Prep" style="font-size:9px;font-weight:700;color:var(--s-blue);border:1px solid var(--s-blue);border-radius:4px;padding:0 3px;vertical-align:middle;">LIVE</span>`:""}</td>`;
+      if(c.k==="n")return `<td class="co" title="${d.n}">${d.n}</td>`;
+      if(c.k==="s")return `<td class="co">${d.s}</td>`;
+      if(c.k==="score"){const col=d.score===6?CSS('--pass'):d.score>=5?CSS('--s-blue'):CSS('--muted');
+        return `<td><span class="scorepill" style="background:${d.score===6?'var(--passbg)':'transparent'};color:${col}">${d.score}/6</span></td>`;}
+      const r=c.rule,v=d[r.key],p=passRule(r,v);
+      return `<td class="metric ${v==null?'':p?'pass':'fail'}">${r.fmt(v)}</td>`;
+    }).join("")+`</tr>`).join("");
+    thr.querySelectorAll("th").forEach(th=>{th.classList.toggle("sorted",th.dataset.k===sortK);
+      th.classList.toggle("asc",sortAsc);});
+  }
+  thr.querySelectorAll("th").forEach(th=>th.addEventListener("click",()=>{
+    const k=th.dataset.k; if(k===sortK)sortAsc=!sortAsc; else{sortK=k;sortAsc=(k==="t"||k==="n"||k==="s");} render();}));
+  ["fSector","fMin","fSearch"].forEach(id=>document.getElementById(id).addEventListener("input",render));
+  render();
+})();
+
+/* ---------- manual calculator ---------- */
+(function(){
+  const map=[["c_tpe","trailingPE"],["c_fpe","forwardPE"],["c_de","debtEquity"],["c_eps","epsGrowth"],["c_peg","peg"],["c_cap","marketCap"]];
+  function grade(){
+    const vals={}; let anyInput=false;
+    map.forEach(([id,k])=>{const raw=document.getElementById(id).value;vals[k]=raw===""?null:parseFloat(raw); if(raw!=="")anyInput=true;});
+    const rowsHost=document.getElementById("calcrows"), verd=document.getElementById("verdict");
+    if(!anyInput){verd.className="verdict idle";verd.textContent="Enter figures and press “Grade it”.";rowsHost.innerHTML="";return;}
+    let passed=0;
+    rowsHost.innerHTML=RULES.map(r=>{const v=vals[r.key],p=passRule(r,v);if(p)passed++;
+      return `<div class="rowline"><span class="rl"><span class="dot ${p?'p':'f'}">${p?'✓':'✕'}</span>${r.label} ${r.op} ${r.key==="epsGrowth"?r.th+"%":r.key==="marketCap"?"$"+r.th+"B":r.th}</span>
+        <span class="rv" style="color:${v==null?'var(--muted)':p?'var(--pass)':'var(--fail)'}">${r.fmt(v)}</span></div>`;}).join("");
+    if(passed===6){verd.className="verdict win";verd.textContent="✓ Passes all 6 — a Lynch candidate";}
+    else{verd.className="verdict lose";verd.textContent=passed+" / 6 rules passed — not a full match";}
+  }
+  document.getElementById("calcBtn").addEventListener("click",grade);
+  map.forEach(([id])=>document.getElementById(id).addEventListener("keydown",e=>{if(e.key==="Enter")grade();}));
+})();
+
+/* ---------- footer ---------- */
+document.getElementById("footer").innerHTML=`
+  <p><b>How to read this.</b> The screen applies all six rules with AND logic — a stock must clear every one. Debt/Equity is expressed as a ratio, so the &lt;35% rule means a ratio below 0.35.</p>
+  <p><b>Data &amp; method.</b> The headline screen is a <b>whole-US-market sweep run July 18, 2026 via the Finviz screener</b> (~5,000 US listings filtered server-side; loose gates of D/E&lt;0.4 and cap&gt;$2B were applied at the source, then the exact six thresholds — including D/E&lt;0.35 and cap&gt;$5B — were re-applied to the 65 survivors, leaving the passers shown above). For Finviz-sourced rows, EPS growth is <b>“EPS growth this year”</b> and market caps are as of that date. Context rows retained from earlier passes use different growth bases: stockanalysis.com rows (July 13) use the analyst 3-year forward growth estimate, and FMP LIVE rows use growth implied by PEG — so compare the growth column across groups with that in mind. A missing figure (“—”) counts as not passing that rule.</p>
+  <p><b>Mega-caps (marked <span style="font-size:9px;font-weight:700;color:var(--s-blue);border:1px solid var(--s-blue);border-radius:4px;padding:0 3px;">LIVE</span>).</b> Twelve familiar mega-caps — AAPL, MSFT, GOOGL, AMZN, META, NVDA, JPM, BAC, V, WMT, COST, KO — carry live Financial Modeling Prep data (July 13, 2026) and are kept for context. None pass all six; Microsoft comes closest at 5/6, missing only forward P/E. The whole-market sweep confirms this independently: none of them survived the market-wide filter either. Note the corrected picture on Micron (MU): both independent sources now agree its market cap is near $1T — the earlier anomaly flag was wrong and has been removed.</p>
+  <p><b>Not investment advice.</b> This is a mechanical screen of quantitative rules, not a recommendation. Figures change daily and should be re-verified before any decision.</p>`;
+</script>
+</body>
+</html>
