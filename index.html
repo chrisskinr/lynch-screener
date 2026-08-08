@@ -156,7 +156,7 @@
 
   <section id="passers">
     <h2>Passing all six today <span class="count" id="passcount"></span></h2>
-    <p class="lead">The result of a <b>whole-US-market screen</b> (~5,000 listings): every stock below clears all six of Peter Lynch's criteria exactly. Sorted by PEG (cheapest growth first) — click any header to re-sort.</p>
+    <p class="lead">The result of a <b>whole-US-market screen</b> (every US listing; sub-$2B names all fail the cap rule): every stock below clears all six of Peter Lynch's criteria exactly. Sorted by PEG (cheapest growth first) — click any header to re-sort.</p>
     <div class="tablewrap"><table class="compact" id="passtbl"><thead><tr id="pthr"></tr></thead><tbody id="ptbody"></tbody></table></div>
   </section>
 
@@ -424,7 +424,7 @@ const CSS = k=>getComputedStyle(document.documentElement).getPropertyValue(k).tr
 /* ---------- rule chips + as-of + footer ---------- */
 document.getElementById("rulechips").innerHTML = RULES.map(r=>
   `<span class="chip">${r.label} <b>${r.op}&nbsp;${r.key==="epsGrowth"?r.th+"%":r.key==="marketCap"?"$"+r.th+"B":r.th}</b></span>`).join("");
-document.getElementById("asof").textContent = "Screen date: "+new Date((window.__meta&&window.__meta.asOf||AS_OF)+"T00:00:00").toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})+(window.__full?"  ·  full universe: all "+DATA.length+" US stocks with market cap ≥ $2B (every smaller stock fails the $5B rule by definition)":"  ·  offline sample of "+DATA.length+" stocks — open the public page for the full 2,098-stock universe");
+document.getElementById("asof").textContent = "Screen date: "+new Date(AS_OF+"T00:00:00").toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})+(window.__full?"  ·  full universe: all "+DATA.length+" US stocks with market cap ≥ $2B (every smaller stock fails the $5B rule by definition)":"  ·  offline sample of "+DATA.length+" stocks — open the public page for the full 2,098-stock universe");
 
 /* ---------- passers table (row-based) ---------- */
 const winners = DATA.filter(d=>d.win);
