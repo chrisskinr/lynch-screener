@@ -20,14 +20,14 @@ VIEWS = {
 class Table(HTMLParser):
     def __init__(self):
         super().__init__(); self.rows=[]; self.cells=[]; self.cur=None; self.in_table=False
-        self.anchor=None; self.in_a=False; self.depth=0; self.header=[]
+        self.anchor=None; self.in_a=False; self.depth=0; self.header=[]; self.cellidx=-1
     def handle_starttag(self,tag,attrs):
         a=dict(attrs)
         if tag=='table' and 'screener_table' in a.get('class',''): self.in_table=True; self.depth=0
         if not self.in_table: return
         if tag=='table': self.depth+=1
-        if tag=='tr' and self.depth<=1: self.cells=[]; self.anchor=None
-        if tag in ('td','th') and self.depth<=1: self.cur=''
+        if tag=='tr' and self.depth<=1: self.cells=[]; self.anchor=None; self.cellidx=-1
+        if tag in ('td','th') and self.depth<=1: self.cur=''; self.cellidx+=1
         if tag=='a' and self.cur is not None: self.in_a=True; self._atext=''
     def handle_endtag(self,tag):
         if not self.in_table: return
@@ -36,7 +36,7 @@ class Table(HTMLParser):
             if self.depth<0: self.in_table=False
         if tag=='a' and self.in_a:
             self.in_a=False
-            if self._atext.strip(): self.anchor=self._atext.strip()
+            if self._atext.strip() and self.cellidx==1: self.anchor=self._atext.strip()
         if tag in ('td','th') and self.cur is not None: self.cells.append(self.cur.strip()); self.cur=None
         if tag=='tr' and self.cells:
             import re as _re
