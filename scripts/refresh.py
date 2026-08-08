@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Refresh data.json: harvest all US stocks >=$2B from Finviz (3 views), write data.json.
+"""Refresh data.json: harvest all US stocks >=$2B from Finviz custom view (single pass).
+Columns c=0,1,2,3,6,7,8,9,17,38,57 -> No, Ticker, Company, Sector, MktCap, P/E, FwdP/E, PEG, EPSthisY, Total D/E, 52W High.
 Aborts (exit 1) without writing if the harvest looks partial/blocked."""
 import json, re, sys, time, urllib.request
 from datetime import date
@@ -7,10 +8,9 @@ from html.parser import HTMLParser
 
 UA = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36',
       'Accept': 'text/html,application/xhtml+xml', 'Accept-Language': 'en-US,en;q=0.9'}
-BASE = 'https://finviz.com/screener.ashx?f=cap_midover&ft=4&o=ticker'
+BASE = 'https://finviz.com/screener.ashx?v=152&f=cap_midover&ft=4&o=ticker&c=0,1,2,3,6,7,8,9,17,38,57'
 
 class Table(HTMLParser):
-    """Collect rows of the screener table: list of (cells:list[str], last_anchor_text:str)."""
     def __init__(self):
         super().__init__(); self.rows=[]; self.cells=[]; self.cur=None; self.in_table=False
         self.anchor=None; self.in_a=False; self.depth=0
@@ -36,41 +36,32 @@ class Table(HTMLParser):
         if self.cur is not None: self.cur+=d
         if self.in_a: self._atext+=d
 
-def fetch(url, tries=3):
+def fetch(url, tries=4):
     for i in range(tries):
         try:
             req=urllib.request.Request(url, headers=UA)
             with urllib.request.urlopen(req, timeout=30) as r: return r.read().decode('utf-8','ignore')
-        except Exception as e:
+        except Exception:
             if i==tries-1: raise
-            time.sleep(2*(i+1))
-
-def pages(view):
-    html=fetch(f'{BASE}&v={view}&r=1')
-    m=re.search(r'#\d+\s*/\s*(\d+)\s*Total', html)
-    if not m: sys.exit('ABORT: no Total count — page layout changed or blocked')
-    total=int(m.group(1))
-    return total, (total+19)//20, html
+            time.sleep(3*(i+1))
 
 def rows_of(html):
     t=Table(); t.feed(html)
-    return [(c,a) for c,a in t.rows if a and len(c)>5 and re.match(r'^\d+$', c[0] or '')]
+    return [(c,a) for c,a in t.rows if a and len(c)>=11 and re.match(r'^\d+$', c[0] or '')]
 
 def main():
-    out={}
-    total, npages, first = pages(111)
+    first=fetch(BASE+'&r=1')
+    m=re.search(r'#\d+\s*/\s*(\d+)\s*Total', first)
+    if not m: sys.exit('ABORT: no Total count - layout changed or blocked')
+    total=int(m.group(1)); npages=(total+19)//20
     print(f'universe total={total} pages={npages}')
-    for view in (111,121,161,171):
-        for p in range(1,npages+1):
-            html = first if (view==111 and p==1) else fetch(f'{BASE}&v={view}&r={1+(p-1)*20}')
-            for cells,tk in rows_of(html):
-                o=out.setdefault(tk,{'t':tk})
-                if view==111: o['n']=cells[2]; o['s']=cells[3]; o['cap']=cells[6]
-                elif view==121: o['pe']=cells[3]; o['fpe']=cells[4]; o['peg']=cells[5]; o['eps']=cells[10]
-                elif view==161: o['de']=cells[10]
-            elif view==171: o['hi']=cells[7]
-            time.sleep(0.35)
-        print(f'view {view} done, rows={len(out)}')
+    out={}
+    for p in range(1,npages+1):
+        html = first if p==1 else fetch(f'{BASE}&r={1+(p-1)*20}')
+        for c,tk in rows_of(html):
+            out[tk]={'n':c[2],'s':c[3],'cap':c[4],'pe':c[5],'fpe':c[6],'peg':c[7],'eps':c[8],'de':c[9],'hi':c[10],'t':tk}
+        time.sleep(0.45)
+        if p%25==0: print(f'page {p}/{npages}, rows={len(out)}')
     def num(s):
         if s in (None,'-',''): return None
         try: return float(str(s).replace('%','').replace(',',''))
@@ -86,7 +77,7 @@ def main():
     full=[r for r in rows if r['pe'] is not None or r['fpe'] is not None]
     if len(rows) < max(1500, total*0.9) or len(full) < len(rows)*0.7:
         sys.exit(f'ABORT: partial harvest rows={len(rows)} full={len(full)} expected~{total}')
-    data={'asOf':date.today().isoformat(),'universe':'US stocks with market cap ≥ $2B (Finviz)',
+    data={'asOf':date.today().isoformat(),'universe':'US stocks with market cap >= $2B (Finviz)',
           'count':len(rows),'rows':rows}
     with open('data.json','w') as f: json.dump(data,f,separators=(',',':'),ensure_ascii=False)
     print(f'WROTE data.json rows={len(rows)}')
