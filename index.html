@@ -134,6 +134,11 @@
   .compact tbody tr{border-top:1px solid var(--grid);}
   .compact td.tk{font-weight:700;}
   .compact .chk{color:var(--pass);font-weight:700;}
+  tr.mainrow{cursor:pointer;}
+  tr.chartrow td{padding:10px 14px 14px;background:var(--surface-1);}
+  tr.chartrow img{max-width:100%;border-radius:8px;border:1px solid var(--border);}
+  tr.chartrow .chartlink{font-size:12px;display:inline-block;margin-top:6px;}
+  td.hi52{font-variant-numeric:tabular-nums;color:var(--text-secondary);}
   /* tooltip */
   #tip{position:fixed;pointer-events:none;background:var(--text-primary);color:var(--page);
     padding:7px 10px;border-radius:8px;font-size:12px;line-height:1.45;opacity:0;transition:opacity .1s;
@@ -426,13 +431,29 @@ document.getElementById("rulechips").innerHTML = RULES.map(r=>
   `<span class="chip">${r.label} <b>${r.op}&nbsp;${r.key==="epsGrowth"?r.th+"%":r.key==="marketCap"?"$"+r.th+"B":r.th}</b></span>`).join("");
 document.getElementById("asof").textContent = "Screen date: "+new Date(AS_OF+"T00:00:00").toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})+(window.__full?"  ·  full universe: all "+DATA.length+" US stocks with market cap ≥ $2B (every smaller stock fails the $5B rule by definition)":"  ·  offline sample of "+DATA.length+" stocks — open the public page for the full 2,098-stock universe");
 
+const fmtHi=v=>v==null?"\u2014":(v>0?"+":"")+v.toFixed(0)+"%";
+function attachCharts(tbody,colspan){
+  tbody.addEventListener("click",e=>{
+    const tr=e.target.closest("tr"); if(!tr||!tbody.contains(tr))return;
+    if(tr.classList.contains("chartrow"))return;
+    const next=tr.nextElementSibling;
+    if(next&&next.classList.contains("chartrow")){next.remove();return;}
+    tbody.querySelectorAll(".chartrow").forEach(x=>x.remove());
+    const tk=(tr.querySelector("td")||{}).textContent.trim().split(" ")[0];
+    if(!tk)return;
+    const row=document.createElement("tr");row.className="chartrow";
+    row.innerHTML='<td colspan="'+colspan+'" style="text-align:left"><img referrerpolicy="no-referrer" loading="lazy" alt="12-month chart for '+tk+'" src="https://charts2.finviz.com/chart.ashx?t='+tk+'&ty=c&ta=1&p=d&s=l" onerror="this.style.display=\'none\';this.nextElementSibling.textContent=\'Chart image unavailable \u2014 \'">'+
+      '<span></span><a class="chartlink" target="_blank" rel="noopener" href="https://finviz.com/quote.ashx?t='+tk+'">Open '+tk+' on Finviz \u2197</a></td>';
+    tr.after(row);
+  });
+}
 /* ---------- passers table (row-based) ---------- */
 const winners = DATA.filter(d=>d.win);
 document.getElementById("passcount").textContent = "("+winners.length+")";
 (function(){
   const cols=[{k:"t",l:"Ticker"},{k:"n",l:"Company"},{k:"s",l:"Sector"},
     {k:"trailingPE",l:"Trail P/E",r:0},{k:"forwardPE",l:"Fwd P/E",r:1},{k:"debtEquity",l:"D/E",r:2},
-    {k:"epsGrowth",l:"EPS grw",r:3},{k:"peg",l:"PEG",r:4},{k:"marketCap",l:"Mkt cap",r:5}];
+    {k:"epsGrowth",l:"EPS grw",r:3},{k:"peg",l:"PEG",r:4},{k:"marketCap",l:"Mkt cap",r:5},{k:"hi52",l:"vs 52W high"}];
   let sK="peg", sAsc=true;
   const thr=document.getElementById("pthr"), tb=document.getElementById("ptbody");
   thr.innerHTML=cols.map(c=>`<th data-k="${c.k}">${c.l}</th>`).join("");
@@ -440,15 +461,16 @@ document.getElementById("passcount").textContent = "("+winners.length+")";
     const rows=[...winners].sort((a,b)=>{let av=a[sK],bv=b[sK];
       if(typeof av==="string")return sAsc?av.localeCompare(bv):bv.localeCompare(av);
       av=av==null?Infinity:av;bv=bv==null?Infinity:bv;return sAsc?av-bv:bv-av;});
-    tb.innerHTML=rows.map(d=>`<tr>
+    tb.innerHTML=rows.map(d=>`<tr class="mainrow">
       <td class="tk">${d.t}</td><td class="co" title="${d.n}">${d.n}</td><td class="co">${d.s}</td>
-      ${RULES.map(r=>`<td class="metric pass">${r.fmt(d[r.key])}</td>`).join("")}
+      ${RULES.map(r=>`<td class="metric pass">${r.fmt(d[r.key])}</td>`).join("")}<td class="hi52">${fmtHi(d.hi52)}</td>
     </tr>`).join("");
     thr.querySelectorAll("th").forEach(th=>{th.classList.toggle("sorted",th.dataset.k===sK);th.classList.toggle("asc",sAsc);});
   }
   thr.querySelectorAll("th").forEach(th=>th.addEventListener("click",()=>{
     const k=th.dataset.k; if(k===sK)sAsc=!sAsc; else{sK=k;sAsc=(k==="t"||k==="n"||k==="s"||k==="peg");} render();}));
   render();
+  attachCharts(tb,cols.length);
 })();
 
 /* ---------- scatter: forwardPE vs peg ---------- */
@@ -529,7 +551,7 @@ document.getElementById("passcount").textContent = "("+winners.length+")";
 (function(){
   const thr=document.getElementById("thr"), tbody=document.getElementById("tbody");
   const cols=[{k:"t",l:"Ticker",cls:"tk"},{k:"n",l:"Company",cls:"co"},{k:"s",l:"Sector",cls:"co"},
-    ...RULES.map(r=>({k:r.key,l:r.short,rule:r})),{k:"score",l:"Score"}];
+    ...RULES.map(r=>({k:r.key,l:r.short,rule:r})),{k:"hi52",l:"52W hi"},{k:"score",l:"Score"}];
   thr.innerHTML=cols.map(c=>`<th data-k="${c.k}">${c.l}</th>`).join("");
   let sortK="score", sortAsc=false;
   const sel=document.getElementById("fSector");
@@ -543,10 +565,11 @@ document.getElementById("passcount").textContent = "("+winners.length+")";
       if(typeof av==="string"){av=av||"";bv=bv||"";return sortAsc?av.localeCompare(bv):bv.localeCompare(av);}
       av=av==null?-Infinity:av; bv=bv==null?-Infinity:bv; return sortAsc?av-bv:bv-av;});
     document.getElementById("tblcount").textContent="("+rows.length+")";
-    tbody.innerHTML=rows.map(d=>`<tr class="${d.win?'winrow':''}">`+cols.map(c=>{
+    tbody.innerHTML=rows.map(d=>`<tr class="mainrow ${d.win?'winrow':''}">`+cols.map(c=>{
       if(c.k==="t")return `<td class="tk">${d.t}${d.src==="FMP"?` <span title="Live data via Financial Modeling Prep" style="font-size:9px;font-weight:700;color:var(--s-blue);border:1px solid var(--s-blue);border-radius:4px;padding:0 3px;vertical-align:middle;">LIVE</span>`:""}</td>`;
       if(c.k==="n")return `<td class="co" title="${d.n}">${d.n}</td>`;
       if(c.k==="s")return `<td class="co">${d.s}</td>`;
+      if(c.k==="hi52")return `<td class="hi52">${fmtHi(d.hi52)}</td>`;
       if(c.k==="score"){const col=d.score===6?CSS('--pass'):d.score>=5?CSS('--s-blue'):CSS('--muted');
         return `<td><span class="scorepill" style="background:${d.score===6?'var(--passbg)':'transparent'};color:${col}">${d.score}/6</span></td>`;}
       const r=c.rule,v=d[r.key],p=passRule(r,v);
@@ -559,6 +582,7 @@ document.getElementById("passcount").textContent = "("+winners.length+")";
     const k=th.dataset.k; if(k===sortK)sortAsc=!sortAsc; else{sortK=k;sortAsc=(k==="t"||k==="n"||k==="s");} render();}));
   ["fSector","fMin","fSearch"].forEach(id=>document.getElementById(id).addEventListener("input",render));
   render();
+  attachCharts(tbody,cols.length);
 })();
 
 /* ---------- manual calculator ---------- */
@@ -593,7 +617,7 @@ document.getElementById("footer").innerHTML=`
     const r=await fetch('data.json',{cache:'no-store'});
     if(r.ok){
       const j=await r.json();
-      DATA=j.rows.map(x=>({t:x.t,n:x.n,s:SECMAP[x.s]||x.s,trailingPE:x.pe,forwardPE:x.fpe,debtEquity:x.de,epsGrowth:x.eps,peg:x.peg,marketCap:x.cap,src:"FINVIZ"}));
+      DATA=j.rows.map(x=>({t:x.t,n:x.n,s:SECMAP[x.s]||x.s,trailingPE:x.pe,forwardPE:x.fpe,debtEquity:x.de,epsGrowth:x.eps,peg:x.peg,marketCap:x.cap,hi52:x.hi52,src:"FINVIZ"}));
       window.__full=true; window.__meta=j;
     }
   }catch(e){}
