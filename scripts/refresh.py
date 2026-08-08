@@ -39,7 +39,8 @@ class Table(HTMLParser):
             if self._atext.strip(): self.anchor=self._atext.strip()
         if tag in ('td','th') and self.cur is not None: self.cells.append(self.cur.strip()); self.cur=None
         if tag=='tr' and self.cells:
-            if not self.header: self.header=self.cells
+            import re as _re
+            if not self.header and not _re.match(r'^\d+$', self.cells[0] or ''): self.header=self.cells
             else: self.rows.append((self.cells,self.anchor))
             self.cells=[]
     def handle_data(self,d):
@@ -76,9 +77,12 @@ def main():
     out={}
     for view,(sanity,fields) in VIEWS.items():
         header, rows = get_page(view, 1)
-        bad=[f'{i}:{header[i] if i<len(header) else "?"}!={name}' for i,name in sanity.items()
-             if i>=len(header) or header[i].lower()!=name.lower()]
-        if bad: sys.exit(f'ABORT: view {view} header mismatch [{"; ".join(bad)}] headers={header}')
+        if header:
+            bad=[f'{i}:{header[i] if i<len(header) else "?"}!={name}' for i,name in sanity.items()
+                 if i>=len(header) or header[i].lower()!=name.lower()]
+            if bad: sys.exit(f'ABORT: view {view} header mismatch [{"; ".join(bad)}] headers={header}')
+        else:
+            print(f'view {view}: no header row (legacy layout) - relying on value checks')
         got=0
         for p in range(1,npages+1):
             if p>1:
@@ -105,6 +109,13 @@ def main():
     full=[r for r in rows if r['pe'] is not None or r['fpe'] is not None]
     if len(rows) < max(1500, total*0.9) or len(full) < len(rows)*0.7:
         sys.exit(f'ABORT: partial harvest rows={len(rows)} full={len(full)} expected~{total}')
+    des=[r['de'] for r in rows if r['de'] is not None]
+    his=[r['hi52'] for r in rows if r['hi52'] is not None]
+    pes=sorted(r['pe'] for r in rows if r['pe'] is not None)
+    med=pes[len(pes)//2] if pes else None
+    if not des or sum(1 for v in des if 0<=v<=20)<len(des)*0.6: sys.exit(f'ABORT: D/E values implausible n={len(des)}')
+    if not his or sum(1 for v in his if v<=0)<len(his)*0.6: sys.exit(f'ABORT: 52W-high values implausible n={len(his)}')
+    if med is None or not (3<med<80): sys.exit(f'ABORT: P/E median implausible {med}')
     data={'asOf':date.today().isoformat(),'universe':'US stocks with market cap >= $2B (Finviz)',
           'count':len(rows),'rows':rows}
     with open('data.json','w') as f: json.dump(data,f,separators=(',',':'),ensure_ascii=False)
