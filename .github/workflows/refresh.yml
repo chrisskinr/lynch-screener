@@ -1,0 +1,25 @@
+name: Refresh screener data
+on:
+  schedule:
+    - cron: '0 22 * * 1-5'   # weekdays 22:00 UTC (after US market close)
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Harvest Finviz and rebuild data.json
+        run: python3 scripts/refresh.py
+      - name: Commit if changed
+        run: |
+          git config user.name "screener-bot"
+          git config user.email "actions@github.com"
+          if ! git diff --quiet data.json; then
+            git add data.json
+            git commit -m "Auto-refresh data.json ($(date -u +%F))"
+            git push
+          else
+            echo "No change"
+          fi
