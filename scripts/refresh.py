@@ -60,7 +60,7 @@ def main():
     out={}
     total, npages, first = pages(111)
     print(f'universe total={total} pages={npages}')
-    for view in (111,121,161):
+    for view in (111,121,161,171):
         for p in range(1,npages+1):
             html = first if (view==111 and p==1) else fetch(f'{BASE}&v={view}&r={1+(p-1)*20}')
             for cells,tk in rows_of(html):
@@ -68,6 +68,7 @@ def main():
                 if view==111: o['n']=cells[2]; o['s']=cells[3]; o['cap']=cells[6]
                 elif view==121: o['pe']=cells[3]; o['fpe']=cells[4]; o['peg']=cells[5]; o['eps']=cells[10]
                 elif view==161: o['de']=cells[10]
+            elif view==171: o['hi']=cells[7]
             time.sleep(0.35)
         print(f'view {view} done, rows={len(out)}')
     def num(s):
@@ -81,7 +82,7 @@ def main():
         return v*1000 if 'T' in s else v/1000 if 'M' in s else v
     rows=[{'t':o['t'],'n':o.get('n',o['t']),'s':o.get('s',''),'cap':capb(o.get('cap')),
            'pe':num(o.get('pe')),'fpe':num(o.get('fpe')),'peg':num(o.get('peg')),
-           'de':num(o.get('de')),'eps':num(o.get('eps'))} for o in out.values()]
+           'de':num(o.get('de')),'eps':num(o.get('eps')),'hi52':num(o.get('hi'))} for o in out.values()]
     full=[r for r in rows if r['pe'] is not None or r['fpe'] is not None]
     if len(rows) < max(1500, total*0.9) or len(full) < len(rows)*0.7:
         sys.exit(f'ABORT: partial harvest rows={len(rows)} full={len(full)} expected~{total}')
