@@ -429,7 +429,7 @@ const CSS = k=>getComputedStyle(document.documentElement).getPropertyValue(k).tr
 /* ---------- rule chips + as-of + footer ---------- */
 document.getElementById("rulechips").innerHTML = RULES.map(r=>
   `<span class="chip">${r.label} <b>${r.op}&nbsp;${r.key==="epsGrowth"?r.th+"%":r.key==="marketCap"?"$"+r.th+"B":r.th}</b></span>`).join("");
-document.getElementById("asof").textContent = "Screen date: "+new Date(AS_OF+"T00:00:00").toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})+(window.__full?"  ·  full universe: all "+DATA.length+" US stocks with market cap ≥ $2B (every smaller stock fails the $5B rule by definition)":"  ·  offline sample of "+DATA.length+" stocks — open the public page for the full 2,098-stock universe");
+document.getElementById("asof").textContent = "Screen date: "+new Date((window.__meta&&window.__meta.asOf||AS_OF)+"T00:00:00").toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})+(window.__full?"  ·  full universe: all "+DATA.length+" US stocks with market cap ≥ $2B (every smaller stock fails the $5B rule by definition)":"  ·  offline sample of "+DATA.length+" stocks — open the public page for the full 2,098-stock universe");
 
 const fmtHi=v=>v==null?"\u2014":(v>0?"+":"")+v.toFixed(0)+"%";
 function attachCharts(tbody,colspan){
